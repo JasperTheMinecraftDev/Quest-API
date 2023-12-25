@@ -8,13 +8,15 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.concurrent.CompletableFuture;
 
 public final class Quest_API extends JavaPlugin {
+
+    private String connectionURL = "mongodb+srv://test:<redacted>/?retryWrites=true&w=majority";
     private DatabaseInterface database;
     private QuestManager questManager;
 
     @Override
     public void onEnable() {
         database = new DatabaseImplementationMongoDB();
-        database.connect("mongodb+srv://test:MnVjpfNKCRvHDoBe@spigottest.ybxaj8s.mongodb.net/?retryWrites=true&w=majority", "test");
+        database.connect(connectionURL, "test");
 
         questManager = new QuestManager(database);
         CompletableFuture<Void> loadQuestsFuture = questManager.loadAllQuestsToHashMap();
