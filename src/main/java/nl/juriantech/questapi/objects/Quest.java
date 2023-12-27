@@ -5,6 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -55,8 +56,18 @@ public class Quest {
         for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
             CompletableFuture<Object> progressFuture = database.getData("player_quest_data", getKey(player));
             progressFuture.thenAccept(data -> {
-                if (data != null) {
-                    playerProgress.put(player.getUniqueId(), (int) data);
+                if (data != null && data instanceof HashMap) {
+                    HashMap<?, ?> progressData = (HashMap<?, ?>) data;
+                    Object progressValue = progressData.get("data");
+
+                    if (progressValue instanceof Integer) {
+                        int intValue = (Integer) progressValue;
+                        playerProgress.put(player.getUniqueId(), intValue);
+                    } else {
+                        System.out.println("Invalid or missing progress data for player: " + player.getName());
+                    }
+                } else {
+                    System.out.println("Invalid data format or null value for player: " + player.getName());
                 }
             }).exceptionally(e -> {
                 e.printStackTrace();
@@ -64,6 +75,7 @@ public class Quest {
             });
         }
     }
+
 
     public String getKey(OfflinePlayer player) {
         return questId + "_" + player.getUniqueId();
