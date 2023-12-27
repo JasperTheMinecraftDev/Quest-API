@@ -9,6 +9,7 @@ import org.bson.Document;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 public class DatabaseImplementationMongoDB implements DatabaseInterface {
     private MongoClient mongoClient;
@@ -31,101 +32,83 @@ public class DatabaseImplementationMongoDB implements DatabaseInterface {
             return false;
         }
     }
-
     @Override
     public CompletableFuture<Void> saveData(String collection, String key, Object data) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
-        try {
-            Document document = new Document("_id", key)
-                    .append("data", data);
-            database.getCollection(collection).insertOne(document);
-            future.complete(null);
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-        }
-
-        return future;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Document document = new Document("_id", key)
+                        .append("data", data);
+                database.getCollection(collection).insertOne(document);
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+            return null;
+        });
     }
 
     @Override
     public CompletableFuture<Object> getData(String collection, String key) {
-        CompletableFuture<Object> future = new CompletableFuture<>();
-
-        try {
-            Document query = new Document("_id", key);
-            future.complete(database.getCollection(collection).find(query).first());
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-        }
-
-        return future;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Document query = new Document("_id", key);
+                return database.getCollection(collection).find(query).first();
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        });
     }
 
     @Override
     public CompletableFuture<List<Document>> getAllDataFrom(String collectionName) {
-        CompletableFuture<List<Document>> future = new CompletableFuture<>();
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                MongoCollection<Document> collection = database.getCollection(collectionName);
+                List<Document> documentList = new ArrayList<>();
 
-        try {
-            MongoCollection<Document> collection = database.getCollection(collectionName);
-            List<Document> documentList = new ArrayList<>();
+                for (Document document : collection.find()) {
+                    documentList.add(document);
+                }
 
-            for (Document document : collection.find()) {
-                documentList.add(document);
+                return documentList;
+            } catch (Exception e) {
+                throw new CompletionException(e);
             }
-
-            future.complete(documentList);
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-        }
-
-        return future;
+        });
     }
-
 
     @Override
     public CompletableFuture<Void> updateData(String collection, String key, Object newData) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                MongoCollection<Document> mongoCollection = database.getCollection(collection);
+                Document query = new Document("_id", key);
 
-        try {
-            MongoCollection<Document> mongoCollection = database.getCollection(collection);
-            Document query = new Document("_id", key);
+                FindIterable<Document> findIterable = mongoCollection.find(query);
+                Document existingDocument = findIterable.first();
 
-            // Check if the document exists
-            FindIterable<Document> findIterable = mongoCollection.find(query);
-            Document existingDocument = findIterable.first();
-
-            if (existingDocument != null) {
-                Document update = new Document("$set", new Document("data", newData));
-                mongoCollection.updateOne(query, update);
-                future.complete(null);
-            } else {
-                CompletableFuture<Void> saveFuture = saveData(collection, key, newData);
-                saveFuture.thenAccept(result -> future.complete(null))
-                        .exceptionally(e -> {
-                            future.completeExceptionally(e);
-                            return null;
-                        });
+                if (existingDocument != null) {
+                    Document update = new Document("$set", new Document("data", newData));
+                    mongoCollection.updateOne(query, update);
+                } else {
+                    saveData(collection, key, newData).join();
+                }
+            } catch (Exception e) {
+                throw new CompletionException(e);
             }
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-        }
-
-        return future;
+            return null;
+        });
     }
 
     @Override
     public CompletableFuture<Void> deleteData(String collection, String key) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
-        try {
-            Document query = new Document("_id", key);
-            database.getCollection(collection).deleteOne(query);
-            future.complete(null);
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-        }
-
-        return future;
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Document query = new Document("_id", key);
+                database.getCollection(collection).deleteOne(query);
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+            return null;
+        });
     }
 }

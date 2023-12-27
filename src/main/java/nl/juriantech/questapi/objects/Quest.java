@@ -52,7 +52,6 @@ public class Quest {
         CompletableFuture<Void> future = new CompletableFuture<>();
 
         playerProgress.put(player.getUniqueId(), newLevel);
-
         CompletableFuture<Void> updateFuture = database.updateData("player_quest_data", getKey(player), newLevel);
         updateFuture.thenAccept(result -> future.complete(null));
         updateFuture.exceptionally(e -> {
