@@ -1,4 +1,4 @@
 name: Quest-API
 version: '${version}'
-main: nl.juriantech.questapi.Quest_API
+main: nl.juriantech.questapi.QuestAPI
 api-version: '1.20'
