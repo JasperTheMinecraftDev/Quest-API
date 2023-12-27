@@ -10,18 +10,26 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.util.concurrent.*;
+
 public class Quest {
     private final String questId;
     private final int maxLevels;
     private final DatabaseInterface database;
     private final Map<UUID, Integer> playerProgress;
+    private final ScheduledExecutorService scheduler;
+    private final int databaseUpdateIntervalSeconds;
 
-    public Quest(String questId, int maxLevels, DatabaseInterface database) {
+    public Quest(String questId, int maxLevels, DatabaseInterface database, int databaseUpdateIntervalSeconds) {
         this.questId = questId;
         this.maxLevels = maxLevels;
         this.database = database;
         this.playerProgress = new ConcurrentHashMap<>();
+        this.databaseUpdateIntervalSeconds = databaseUpdateIntervalSeconds;
+        this.scheduler = Executors.newScheduledThreadPool(1);
+
         loadPlayerProgress();
+        scheduleCacheUpdates();
     }
 
     public String getQuestId() {
@@ -30,6 +38,10 @@ public class Quest {
 
     public int getMaxLevels() {
         return maxLevels;
+    }
+
+    public int getDatabaseUpdateIntervalSeconds() {
+        return databaseUpdateIntervalSeconds;
     }
 
     public Map<UUID, Integer> getPlayerProgress() {
@@ -61,6 +73,28 @@ public class Quest {
             }).exceptionally(e -> {
                 e.printStackTrace();
                 return null;
+            });
+        }
+    }
+
+    private void scheduleCacheUpdates() {
+        scheduler.scheduleAtFixedRate(() -> updateDatabaseFromCache(null), databaseUpdateIntervalSeconds, databaseUpdateIntervalSeconds, TimeUnit.SECONDS);
+    }
+
+    public void updateDatabaseFromCache(UUID specificPlayerUUID) {
+        if (specificPlayerUUID != null) {
+            OfflinePlayer specificPlayer = Bukkit.getOfflinePlayer(specificPlayerUUID);
+            if (specificPlayer != null && specificPlayer.isOnline()) {
+                int currentLevel = playerProgress.getOrDefault(specificPlayerUUID, 0);
+                database.updateData("player_quest_data", getKey(specificPlayer), currentLevel);
+            }
+        } else {
+            playerProgress.forEach((playerUUID, level) -> {
+                OfflinePlayer player = Bukkit.getOfflinePlayer(playerUUID);
+                if (player != null && player.isOnline()) {
+                    int currentLevel = playerProgress.getOrDefault(playerUUID, 0);
+                    database.updateData("player_quest_data", getKey(player), currentLevel);
+                }
             });
         }
     }

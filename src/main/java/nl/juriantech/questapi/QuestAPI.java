@@ -2,14 +2,16 @@ package nl.juriantech.questapi;
 
 import nl.juriantech.questapi.impl.DatabaseImplementationMongoDB;
 import nl.juriantech.questapi.interfaces.DatabaseInterface;
+import nl.juriantech.questapi.listeners.PlayerLeaveListener;
 import nl.juriantech.questapi.managers.QuestManager;
+import nl.juriantech.questapi.objects.Quest;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.concurrent.CompletableFuture;
 
-public final class Quest_API extends JavaPlugin {
+public final class QuestAPI extends JavaPlugin {
 
-    private String connectionURL = "mongodb+srv://test:<redacted>/?retryWrites=true&w=majority";
+    private final String connectionURL = "mongodb+srv://test:<redacted>@spigottest.ybxaj8s.mongodb.net/?retryWrites=true&w=majority";
     private DatabaseInterface database;
     private QuestManager questManager;
 
@@ -19,6 +21,7 @@ public final class Quest_API extends JavaPlugin {
         database.connect(connectionURL, "test");
 
         questManager = new QuestManager(database);
+        getServer().getPluginManager().registerEvents(new PlayerLeaveListener(this), this);
         CompletableFuture<Void> loadQuestsFuture = questManager.loadAllQuestsToHashMap();
         loadQuestsFuture.exceptionally(e -> {
             e.printStackTrace();
@@ -34,6 +37,10 @@ public final class Quest_API extends JavaPlugin {
             e.printStackTrace();
             return null;
         });
+
+        for (Quest quest : questManager.getAllQuests().values()) {
+            quest.updateDatabaseFromCache(null);
+        }
     }
 
     public DatabaseInterface getDatabase() {

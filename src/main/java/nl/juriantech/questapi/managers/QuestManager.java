@@ -49,6 +49,7 @@ public class QuestManager {
         Map<String, Object> questDocument = new HashMap<>();
         questDocument.put("questId", quest.getQuestId());
         questDocument.put("maxLevels", quest.getMaxLevels());
+        questDocument.put("databaseUpdateIntervalSeconds", quest.getDatabaseUpdateIntervalSeconds());
 
         CompletableFuture<Void> saveQuestInfoFuture = database.saveData("all_quests", quest.getQuestId(), questDocument);
         saveQuestInfoFuture.thenAccept(result -> future.complete(null))
@@ -74,8 +75,9 @@ public class QuestManager {
                     if (data instanceof Document questData) {
                         String questId = questData.getString("questId");
                         int maxLevels = questData.getInteger("maxLevels");
+                        int databaseUpdateIntervalSeconds = questData.getInteger("databaseUpdateIntervalSeconds");
 
-                        Quest quest = new Quest(questId, maxLevels, database);
+                        Quest quest = new Quest(questId, maxLevels, database, databaseUpdateIntervalSeconds);
                         quests.put(questId, quest);
                     }
                 }
