@@ -1,8 +1,7 @@
 package nl.juriantech.questapi.interfaces;
 
-import org.bson.Document;
-
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public interface DatabaseInterface {
@@ -11,7 +10,7 @@ public interface DatabaseInterface {
     CompletableFuture<Void> saveData(String collection, String key, Object data);
 
     CompletableFuture<Object> getData(String collection, String key);
-    CompletableFuture<List<Document>> getAllDataFrom(String collection);
+    CompletableFuture<List<Map<String, Object>>> getAllDataFrom(String collection);
 
     CompletableFuture<Void> updateData(String collection, String key, Object newData);
 

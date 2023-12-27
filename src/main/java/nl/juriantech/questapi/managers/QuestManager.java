@@ -2,7 +2,6 @@ package nl.juriantech.questapi.managers;
 
 import nl.juriantech.questapi.interfaces.DatabaseInterface;
 import nl.juriantech.questapi.objects.Quest;
-import org.bson.Document;
 
 import java.util.HashMap;
 import java.util.List;
@@ -41,22 +40,20 @@ public class QuestManager {
         future.complete(null);
         return future;
     }
-
     private CompletableFuture<Void> saveQuestToDatabase(Quest quest) {
         CompletableFuture<Void> future = new CompletableFuture<>();
 
-        // Convert the Quest object to a structure that's suitable for a MongoDB document
-        Map<String, Object> questDocument = new HashMap<>();
-        questDocument.put("questId", quest.getQuestId());
-        questDocument.put("maxLevels", quest.getMaxLevels());
-        questDocument.put("databaseUpdateIntervalSeconds", quest.getDatabaseUpdateIntervalSeconds());
+        Map<String, Object> questData = new HashMap<>();
+        questData.put("questId", quest.getQuestId());
+        questData.put("maxLevels", quest.getMaxLevels());
+        questData.put("databaseUpdateIntervalSeconds", quest.getDatabaseUpdateIntervalSeconds());
 
-        CompletableFuture<Void> saveQuestInfoFuture = database.saveData("all_quests", quest.getQuestId(), questDocument);
+        CompletableFuture<Void> saveQuestInfoFuture = database.saveData("all_quests", quest.getQuestId(), questData);
         saveQuestInfoFuture.thenAccept(result -> future.complete(null))
-            .exceptionally(e -> {
-                future.completeExceptionally(e);
-                return null;
-            });
+                .exceptionally(e -> {
+                    future.completeExceptionally(e);
+                    return null;
+                });
 
         return future;
     }
@@ -64,22 +61,18 @@ public class QuestManager {
     public CompletableFuture<Void> loadAllQuestsToHashMap() {
         CompletableFuture<Void> future = new CompletableFuture<>();
 
-        CompletableFuture<List<Document>> allQuestsDataFuture = database.getAllDataFrom("all_quests");
+        CompletableFuture<List<Map<String, Object>>> allQuestsDataFuture = database.getAllDataFrom("all_quests");
         allQuestsDataFuture.thenAccept(allQuestsData -> {
             if (allQuestsData != null) {
                 quests.clear();
 
-                for (Document questDocument : allQuestsData) {
-                    Object data = questDocument.get("data");
+                for (Map<String, Object> questData : allQuestsData) {
+                    String questId = (String) questData.get("questId");
+                    int maxLevels = (int) questData.get("maxLevels");
+                    int databaseUpdateIntervalSeconds = (int) questData.get("databaseUpdateIntervalSeconds");
 
-                    if (data instanceof Document questData) {
-                        String questId = questData.getString("questId");
-                        int maxLevels = questData.getInteger("maxLevels");
-                        int databaseUpdateIntervalSeconds = questData.getInteger("databaseUpdateIntervalSeconds");
-
-                        Quest quest = new Quest(questId, maxLevels, database, databaseUpdateIntervalSeconds);
-                        quests.put(questId, quest);
-                    }
+                    Quest quest = new Quest(questId, maxLevels, database, databaseUpdateIntervalSeconds);
+                    quests.put(questId, quest);
                 }
 
                 future.complete(null);

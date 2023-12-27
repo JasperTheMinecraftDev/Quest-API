@@ -7,7 +7,9 @@ import nl.juriantech.questapi.interfaces.DatabaseInterface;
 import org.bson.Document;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -51,7 +53,9 @@ public class DatabaseImplementationMongoDB implements DatabaseInterface {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Document query = new Document("_id", key);
-                return database.getCollection(collection).find(query).first();
+                Document result = database.getCollection(collection).find(query).first();
+
+                return convertDocumentToMap(result);
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
@@ -59,22 +63,36 @@ public class DatabaseImplementationMongoDB implements DatabaseInterface {
     }
 
     @Override
-    public CompletableFuture<List<Document>> getAllDataFrom(String collectionName) {
+    public CompletableFuture<List<Map<String, Object>>> getAllDataFrom(String collectionName) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 MongoCollection<Document> collection = database.getCollection(collectionName);
-                List<Document> documentList = new ArrayList<>();
+                List<Map<String, Object>> dataList = new ArrayList<>();
 
                 for (Document document : collection.find()) {
-                    documentList.add(document);
+                    dataList.add(convertDocumentToMap(document));
                 }
 
-                return documentList;
+                return dataList;
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
         });
     }
+
+    private Map<String, Object> convertDocumentToMap(Document document) {
+        if (document == null) {
+            return null;
+        }
+
+        Map<String, Object> map = new HashMap<>();
+        for (String key : document.keySet()) {
+            map.put(key, document.get(key));
+        }
+
+        return map;
+    }
+
 
     @Override
     public CompletableFuture<Void> updateData(String collection, String key, Object newData) {
