@@ -1,25 +1,28 @@
 package nl.juriantech.questapi.managers;
 
+import nl.juriantech.questapi.QuestAPI;
 import nl.juriantech.questapi.interfaces.DatabaseInterface;
 import nl.juriantech.questapi.objects.Quest;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class QuestManager {
-    private final DatabaseInterface database;
-    private final Map<String, Quest> quests;
 
-    public QuestManager(DatabaseInterface database) {
+    private final QuestAPI plugin;
+    private final DatabaseInterface database;
+    private Map<String, Quest> quests;
+
+    public QuestManager(QuestAPI plugin, DatabaseInterface database) {
+        this.plugin = plugin;
         this.database = database;
         this.quests = new HashMap<>();
     }
 
     public void addQuest(Quest quest) {
         quests.put(quest.getQuestId(), quest);
-        saveQuestToDatabase(quest);
+        database.saveQuestToDatabase(quest);
     }
 
     public Quest getQuest(String questId) {
@@ -30,7 +33,7 @@ public class QuestManager {
         CompletableFuture<Void> future = new CompletableFuture<>();
 
         for (Quest quest : quests.values()) {
-            saveQuestToDatabase(quest)
+            database.saveQuestToDatabase(quest)
                 .exceptionally(e -> {
                     future.completeExceptionally(e);
                     return null;
@@ -40,51 +43,13 @@ public class QuestManager {
         future.complete(null);
         return future;
     }
-    private CompletableFuture<Void> saveQuestToDatabase(Quest quest) {
-        CompletableFuture<Void> future = new CompletableFuture<>();
-
-        Map<String, Object> questData = new HashMap<>();
-        questData.put("questId", quest.getQuestId());
-        questData.put("maxLevels", quest.getMaxLevels());
-        questData.put("databaseUpdateIntervalSeconds", quest.getDatabaseUpdateIntervalSeconds());
-
-        CompletableFuture<Void> saveQuestInfoFuture = database.saveData("all_quests", quest.getQuestId(), questData);
-        saveQuestInfoFuture.thenAccept(result -> future.complete(null))
-                .exceptionally(e -> {
-                    future.completeExceptionally(e);
-                    return null;
-                });
-
-        return future;
-    }
 
     public CompletableFuture<Void> loadAllQuestsToHashMap() {
-        CompletableFuture<Void> future = new CompletableFuture<>();
+        CompletableFuture<Map<String, Quest>> loadQuestsFuture = database.loadAllQuestsToHashMap(plugin);
 
-        CompletableFuture<List<Map<String, Object>>> allQuestsDataFuture = database.getAllDataFrom("all_quests");
-        allQuestsDataFuture.thenAccept(allQuestsData -> {
-            if (allQuestsData != null) {
-                quests.clear();
-
-                for (Map<String, Object> questData : allQuestsData) {
-                    String questId = (String) questData.get("questId");
-                    int maxLevels = (int) questData.get("maxLevels");
-                    int databaseUpdateIntervalSeconds = (int) questData.get("databaseUpdateIntervalSeconds");
-
-                    Quest quest = new Quest(questId, maxLevels, database, databaseUpdateIntervalSeconds);
-                    quests.put(questId, quest);
-                }
-
-                future.complete(null);
-            } else {
-                future.completeExceptionally(new IllegalArgumentException("Invalid format for quests data"));
-            }
-        }).exceptionally(e -> {
-            future.completeExceptionally(e);
-            return null;
-        });
-
-        return future;
+        return loadQuestsFuture.thenAcceptAsync(loadedQuests -> {
+            quests = loadedQuests;
+        }).thenApplyAsync(__ -> null);
     }
 
 

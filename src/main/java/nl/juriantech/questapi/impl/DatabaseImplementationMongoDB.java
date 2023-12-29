@@ -3,13 +3,14 @@ package nl.juriantech.questapi.impl;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.*;
+import nl.juriantech.questapi.QuestAPI;
 import nl.juriantech.questapi.interfaces.DatabaseInterface;
+import nl.juriantech.questapi.objects.Quest;
 import org.bson.Document;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -48,29 +49,27 @@ public class DatabaseImplementationMongoDB implements DatabaseInterface {
         });
     }
 
-    @Override
     public CompletableFuture<Object> getData(String collection, String key) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Document query = new Document("_id", key);
                 Document result = database.getCollection(collection).find(query).first();
 
-                return convertDocumentToMap(result);
+                return result;
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
         });
     }
 
-    @Override
-    public CompletableFuture<List<Map<String, Object>>> getAllDataFrom(String collectionName) {
+    private CompletableFuture<List<Document>> getAllDataFrom(String collectionName) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 MongoCollection<Document> collection = database.getCollection(collectionName);
-                List<Map<String, Object>> dataList = new ArrayList<>();
+                List<Document> dataList = new ArrayList<>();
 
                 for (Document document : collection.find()) {
-                    dataList.add(convertDocumentToMap(document));
+                    dataList.add(document);
                 }
 
                 return dataList;
@@ -78,19 +77,6 @@ public class DatabaseImplementationMongoDB implements DatabaseInterface {
                 throw new CompletionException(e);
             }
         });
-    }
-
-    private Map<String, Object> convertDocumentToMap(Document document) {
-        if (document == null) {
-            return null;
-        }
-
-        Map<String, Object> map = new HashMap<>();
-        for (String key : document.keySet()) {
-            map.put(key, document.get(key));
-        }
-
-        return map;
     }
 
 
@@ -128,5 +114,84 @@ public class DatabaseImplementationMongoDB implements DatabaseInterface {
             }
             return null;
         });
+    }
+
+    @Override
+    public CompletableFuture<Void> saveQuestToDatabase(Quest quest) {
+        Map<String, Object> questData = new HashMap<>();
+        questData.put("questId", quest.getQuestId());
+        questData.put("maxLevels", quest.getMaxLevels());
+        questData.put("databaseUpdateIntervalSeconds", quest.getDatabaseUpdateIntervalSeconds());
+
+        return saveData("all_quests", quest.getQuestId(), questData);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Quest>> loadAllQuestsToHashMap(QuestAPI plugin) {
+        CompletableFuture<Map<String, Quest>> future = new CompletableFuture<>();
+
+        getAllDataFrom("all_quests").thenApplyAsync(allQuestsData -> {
+            Map<String, Quest> quests = new HashMap<>();
+
+            if (allQuestsData != null) {
+                for (Document questData : allQuestsData) {
+                    String questId = questData.getString("questId");
+                    int maxLevels = questData.getInteger("maxLevels");
+                    int databaseUpdateIntervalSeconds = questData.getInteger("databaseUpdateIntervalSeconds");
+
+                    Quest quest = new Quest(plugin, questId, maxLevels, this, databaseUpdateIntervalSeconds);
+                    quests.put(questId, quest);
+                }
+
+                future.complete(quests);
+            } else {
+                future.completeExceptionally(new IllegalArgumentException("Invalid format for quests data"));
+            }
+
+            return quests;
+        }).exceptionally(e -> {
+            future.completeExceptionally(e);
+            return null;
+        });
+
+        return future;
+    }
+
+    @Override
+    public CompletableFuture<Void> levelUp(UUID playerUUID, String questId, int newLevel) {
+        return updateData("player_quest_data", getKey(questId, playerUUID), newLevel);
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, Integer>> loadPlayerProgress(String questId, QuestAPI plugin) {
+        Map<UUID, Integer> playerProgress = new HashMap<>();
+        CompletableFuture<Map<UUID, Integer>> future = new CompletableFuture<>();
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            for (OfflinePlayer player : Bukkit.getOfflinePlayers()) {
+                CompletableFuture<Object> progressFuture = getData("player_quest_data", getKey(questId, player.getUniqueId()));
+                progressFuture.thenAcceptAsync(data -> {
+                    if (data != null && data instanceof HashMap) {
+                        HashMap<?, ?> progressData = (HashMap<?, ?>) data;
+                        Object progressValue = progressData.get("data");
+
+                        if (progressValue instanceof Integer) {
+                            int intValue = (Integer) progressValue;
+                            playerProgress.put(player.getUniqueId(), intValue);
+                        }
+                    }
+                }).exceptionally(e -> {
+                    e.printStackTrace();
+                    return null;
+                });
+            }
+            future.complete(playerProgress);
+        });
+
+        return future;
+    }
+
+    public String getKey(String questId, UUID playerUUID) {
+        return questId + "_" + playerUUID;
     }
 }

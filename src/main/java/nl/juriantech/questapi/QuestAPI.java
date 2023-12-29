@@ -20,7 +20,7 @@ public final class QuestAPI extends JavaPlugin {
         database = new DatabaseImplementationMongoDB();
         database.connect(connectionURL, "test");
 
-        questManager = new QuestManager(database);
+        questManager = new QuestManager(this, database);
         getServer().getPluginManager().registerEvents(new PlayerLeaveListener(this), this);
         CompletableFuture<Void> loadQuestsFuture = questManager.loadAllQuestsToHashMap();
         loadQuestsFuture.exceptionally(e -> {
